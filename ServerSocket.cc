@@ -28,6 +28,10 @@
 #include <string.h>      // for memset, strerror()
 #include <iostream>      // for std::cerr, etc.
 
+#include <sstream>//delete thees
+#include <stdlib.h>//dleete
+#include <string.h>//delete
+
 #include "./ServerSocket.h"
 
 extern "C" {
@@ -35,6 +39,12 @@ extern "C" {
 }
 
 namespace hw4 {
+
+void GetDNSname(struct sockaddr *addr, size_t addrlen, std::string *dnsname);
+
+void GetInfo(int fd, struct sockaddr *addr, size_t addrlen,
+      std::string *set_addr, uint16_t *port);
+
 
 ServerSocket::ServerSocket(uint16_t port) {
   port_ = port;
@@ -56,60 +66,87 @@ bool ServerSocket::BindAndListen(int ai_family, int *listen_fd) {
   // listening socket through the output parameter "listen_fd".
 
   // MISSING:
-  int retval, socket_fd;
-  struct addrinfo hints, *results, *r;
+  int retval;
+  struct addrinfo hints, *result;
 
-  // zero out hints data structure
-  memset(&hints, 0, sizeof(hints));
+/*CODE FROM server_accept_rw_close.cc.html*/
+
+  memset(&hints, 0, sizeof(struct addrinfo));
+  hints.ai_family = AF_UNSPEC;      // allow IPv4 or IPv6
+  hints.ai_socktype = SOCK_STREAM;  // stream
+  hints.ai_flags = AI_PASSIVE;      // use wildcard "INADDR_ANY"
+  hints.ai_protocol = IPPROTO_TCP;  // tcp protocol
+  hints.ai_canonname = NULL;
+  hints.ai_addr = NULL;
+  hints.ai_next = NULL;
 
   // use getaddrinfo
-  retval = getaddrinfo(NULL, NULL, &hints, &results); // 1st,2nd parameter?
-  //Verify333(retval == 0);
+  // convert port to a char*
+/// ??? FIND WAY TO CONVERT BETWEEN UINT IN CHAR*
+//  char* port_str = (char*) &port_;
+std::stringstream s;
+s<<port_;
+std::string port = s.str();
+retval = getaddrinfo(NULL, port.c_str(), &hints, &result);
+
+//  retval = getaddrinfo(NULL, port_str, &hints, &result); // 1st,2nd parameter?
   if (retval != 0) {
+    std::cerr << "getaddrinfo() failed: ";
+    std::cerr << gai_strerror(retval) << std::endl;
     return false;
-  }
+  } // should i do verify stmt instead???
 
-  for (r = results; r != NULL; r = r->ai_next) {
-    // IPv4
-    r->ai_family = ai_family;
-    if (r->ai_family == AF_INET) {
-      char ipstring[INET_ADDRSTRLEN];
-      struct sockaddr_in *v4addr = (struct sockaddr_in *) r->ai_addr;
-      inet_ntop(r->ai_family, &(v4addr->sin_addr), ipstring,
-            INET_ADDRSTRLEN);
-    } else if (r->ai_family == AF_INET6) { //IPv6
-      char ipstring[INET6_ADDRSTRLEN];
-      struct sockaddr_in6 *v6addr = (struct sockaddr_in6 *) r->ai_addr;
-      inet_ntop(r->ai_family, &(v6addr->sin6_addr), ipstring,
-            INET6_ADDRSTRLEN);
-    } else if (r->ai_family == AF_UNSPEC) { //try 4, then 6?
-      // idkkk
-    } else {
-      // idk
-    }
-  
-    // use socket
-        // should i have if else for aifamily?
-        // should this all be in for loop?
-    socket_fd = socket(ai_family, SOCK_STREAM, 0);
-    if (socket_fd == -1) {
-      return false; // return false or Verify333?
+  *listen_fd = -1;
+  for (struct addrinfo *rp = result; rp != NULL; rp = rp->ai_next) {
+    *listen_fd = socket(rp->ai_family,
+                       rp->ai_socktype,
+                       rp->ai_protocol);
+    if (*listen_fd == -1) {
+      // Creating this socket failed.  So, loop to the next returned
+      // result and try again.
+      std::cerr << "socket() failed: " << strerror(errno) << std::endl;
+      *listen_fd = -1;
+      continue;
     }
 
-    // use bind
-    if (bind(socket_fd, r->ai_addr, r->ai_addrlen) == 0) {
+    // Configure the socket; we're setting a socket "option."  In
+    // particular, we set "SO_REUSEADDR", which tells the TCP stack
+    // so make the port we bind to available again as soon as we
+    // exit, rather than waiting for a few tens of seconds to recycle it.
+    int optval = 1;
+    retval = setsockopt(*listen_fd, SOL_SOCKET, SO_REUSEADDR,
+               &optval, sizeof(optval));
+    Verify333(retval == 0);
+
+    // Try binding the socket to the address and port number returned
+    // by getaddrinfo().
+    if (bind(*listen_fd, rp->ai_addr, rp->ai_addrlen) == 0) {
       break;
     }
+
+    // The bind failed.  Close the socket, then loop back around and
+    // try the next address/port returned by getaddrinfo().
+    close(*listen_fd);
+    *listen_fd = -1;
   }
-  // use listen - create listening socket on port port_
-  retval = listen(socket_fd, SOMAXCONN);
-  //Verify333(retval == 0);
-  if (retval != 0) {
+
+  // Free the structure returned by getaddrinfo().
+  freeaddrinfo(result);
+
+  // If we failed to bind, return failure
+  if (*listen_fd == -1) {
     return false;
   }
 
-  // return listening socket through output param listen_fd
-  *listen_fd = socket_fd;  
+  // Succes. Tell the OS that we want this to be a listening socket.
+  if (listen(*listen_fd, SOMAXCONN) != 0) {
+    std::cerr << "Failed to mark socket as listening: ";
+    std::cerr << strerror(errno) << std::endl;
+    close(*listen_fd);
+    return false;
+  }
+
+  listen_sock_fd_ = *listen_fd;
   return true;
 }
 
@@ -133,18 +170,68 @@ bool ServerSocket::Accept(int *accepted_fd,
                       reinterpret_cast<struct sockaddr *>(&caddr),
                       &caddr_len);
     if (client_fd < 0) {
-      // used wrappedread or something?
       if ((errno == EAGAIN) || (errno == EINTR)) {
         continue;
       } else {
         return false;
       }
-    }
+    }//any error checking???
     
+    // get accepted_fd value
+    *accepted_fd = client_fd;
 
+    // get client addr and port
+    GetInfo(client_fd, reinterpret_cast<struct sockaddr *>(&caddr),
+                caddr_len, client_addr, client_port);
+    
+    // get client dnsname
+    GetDNSname(reinterpret_cast<struct sockaddr *>(&caddr), caddr_len,
+                client_dnsname);
+
+    // get server addr
+    struct sockaddr_storage saddr;
+    socklen_t saddr_len = sizeof(saddr);
+    int retval = getsockname(client_fd,
+              reinterpret_cast<struct sockaddr *>(&saddr), &saddr_len);
+    Verify333(retval == 0);
+    GetInfo(client_fd, reinterpret_cast<struct sockaddr *>(&saddr),
+          saddr_len, server_addr, client_port);
+
+    // get server name
+    GetDNSname(reinterpret_cast<struct sockaddr *>(&saddr), saddr_len,
+                  server_dnsname);
+ 
+   return true;
   }
+}
 
-  return true;
+void GetDNSname(struct sockaddr *addr, size_t addrlen,
+                  std::string *dnsname) {
+  char hostname[1024];
+  int retval = getnameinfo(addr, addrlen, hostname, 1024, NULL, 0, 0);
+  Verify333(retval == 0);
+  *dnsname = hostname;
+}
+
+void GetInfo(int fd, struct sockaddr *addr, size_t addrlen,
+        std::string *set_addr, uint16_t *port) {
+  if (addr->sa_family == AF_INET) {
+    // set the IPV4 address and port
+    char astring[INET_ADDRSTRLEN];
+    struct sockaddr_in *in4 = reinterpret_cast<struct sockaddr_in *>(addr);
+    inet_ntop(AF_INET, &(in4->sin_addr), astring, INET_ADDRSTRLEN);
+    *set_addr = astring;
+    *port = htons(in4->sin_port);
+  } else if (addr->sa_family == AF_INET6) {
+    // set the IPV4 address and port
+    char astring[INET6_ADDRSTRLEN];
+    struct sockaddr_in6 *in6 = reinterpret_cast<struct sockaddr_in6 *>(addr);
+    inet_ntop(AF_INET6, &(in6->sin6_addr), astring, INET6_ADDRSTRLEN);
+    *set_addr = astring;
+    *port = htons(in6->sin6_port);
+  } else {
+    std::cout << "error? idk how to handle this" << std::endl;
+  }
 }
 
 }  // namespace hw4
