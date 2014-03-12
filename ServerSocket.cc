@@ -28,10 +28,6 @@
 #include <string.h>      // for memset, strerror()
 #include <iostream>      // for std::cerr, etc.
 
-#include <sstream>//delete thees
-#include <stdlib.h>//dleete
-#include <string.h>//delete
-
 #include "./ServerSocket.h"
 
 extern "C" {
@@ -82,19 +78,15 @@ bool ServerSocket::BindAndListen(int ai_family, int *listen_fd) {
 
   // use getaddrinfo
   // convert port to a char*
-/// ??? FIND WAY TO CONVERT BETWEEN UINT IN CHAR*
-//  char* port_str = (char*) &port_;
-std::stringstream s;
-s<<port_;
-std::string port = s.str();
-retval = getaddrinfo(NULL, port.c_str(), &hints, &result);
+  std::string port_str = std::to_string(port_);
+  const char* port_c_str = port_str.c_str();
 
-//  retval = getaddrinfo(NULL, port_str, &hints, &result); // 1st,2nd parameter?
+  retval = getaddrinfo(NULL, port_c_str, &hints, &result);
   if (retval != 0) {
     std::cerr << "getaddrinfo() failed: ";
     std::cerr << gai_strerror(retval) << std::endl;
     return false;
-  } // should i do verify stmt instead???
+  }
 
   *listen_fd = -1;
   for (struct addrinfo *rp = result; rp != NULL; rp = rp->ai_next) {
