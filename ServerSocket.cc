@@ -68,7 +68,7 @@ bool ServerSocket::BindAndListen(int ai_family, int *listen_fd) {
 /*CODE FROM server_accept_rw_close.cc.html*/
 
   memset(&hints, 0, sizeof(struct addrinfo));
-  hints.ai_family = AF_UNSPEC;      // allow IPv4 or IPv6
+  hints.ai_family = ai_family;      // allow IPv4 or IPv6
   hints.ai_socktype = SOCK_STREAM;  // stream
   hints.ai_flags = AI_PASSIVE;      // use wildcard "INADDR_ANY"
   hints.ai_protocol = IPPROTO_TCP;  // tcp protocol
