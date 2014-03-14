@@ -122,20 +122,29 @@ HttpRequest HttpConnection::ParseRequest(size_t end) {
   // MISSING:
   string delimiter = "\r\n";
   std::vector<string> lines;
-  boost::split(lines, delimiter, boost::is_any_of(delimiter));
-//  std::vector<string>::iterator lines_it = lines.begin();
+  boost::split(lines, buffer_, boost::is_any_of(delimiter));
   
   std::vector<string> first_line;
   boost::split(first_line, lines[0], boost::is_any_of(" "));
-//  std::vector<string>::iterator first_line_it = first_line.begin();
   // get second token
-//  first_line_it++;
   req.URI = first_line[1];
 
   for (size_t i = 1; i < lines.size(); i++) {
-    lines[i];
-  }
+    // trim whitespace from end of string
+    boost::trim(lines[i]);
+    // convert string to lower case
+    boost::to_lower(lines[i]);
 
+    // get headername and headerval from line
+    // line is of format [headername]: [headerval]
+    std::vector<string> line;
+    boost::split(line, lines[i], boost::is_any_of(": "));
+    std::string headername = line[0];
+    std::string headerval = line[1];
+
+    req.headers.insert({headername, headerval});
+  }
+ 
   
 
   return req;
