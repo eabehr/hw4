@@ -56,38 +56,28 @@ bool HttpConnection::GetNextRequest(HttpRequest *request) {
   std::string exit_str = "\r\n\r\n";
   char *buf = (char *) malloc(sizeof(char) * 1024);
 // how to check for connection dropped?
-  size_t location_of_exit_str = 0;
-  size_t end;
-  while ((end = buffer_.find(exit_str)) == string::npos) {
-    int retval = WrappedRead(fd_, (unsigned char*) buf, 1024);
-// check if retval < 1024???
-    if (retval == -1 || retval == 0) {
-      // close connection
-      return false;
+  size_t exit_location = buffer_.find(exit_str);
+
+  // check that there isn't already existing buffer
+  if (buffer_.length() == 0) {
+    while (1){
+      int retval = WrappedRead(fd_, (unsigned char*) buf, 1024);
+      if (retval == -1 || retval == 0) {
+        //??? HOW close connection
+        return false;
+      }
+      buffer_.append(buf, retval);
+
+      if (retval < 1024) {
+        exit_location = buffer_.find(exit_str);
+        break;
+      }    
     }
-    buffer_.append(buf, retval);
-
-if (strlen(buf) < 1024) {
-end = buffer_.find(exit_str);
-}    
-    /*location_of_exit_str = buffer_.find_first_of(exit_str);
-    if (location_of_exit_str != string::npos) {
-      // contains request header
-   //   ParseRequest(location_of_exit_str); // or location - 1???
-      break;
-    }*/
-
   }
 
-string s = buffer_.substr(0, end);
-*request = ParseRequest(end);
-buffer_ = buffer_.substr(end,+4);
-return true;
-// ??????
-//  if (location_of_exit_str != 0) {
-//    *request = ParseRequest(location_of_exit_str); // or location-1
-//  }
-//  return true;
+  *request = ParseRequest(exit_location);
+  buffer_ = buffer_.substr(exit_location+4);
+  return true;
 }
 
 
@@ -124,7 +114,7 @@ HttpRequest HttpConnection::ParseRequest(size_t end) {
   // MISSING:
   string delimiter = "\r\n";
   std::vector<string> lines;
-  boost::split(lines, buffer_, boost::is_any_of(delimiter));
+  boost::split(lines, str, boost::is_any_of(delimiter));
   
   std::vector<string> first_line;
   boost::split(first_line, lines[0], boost::is_any_of(" "));
@@ -139,17 +129,19 @@ HttpRequest HttpConnection::ParseRequest(size_t end) {
 
     // get headername and headerval from line
     // line is of format [headername]: [headerval]
+std::cout << lines[i] << std::endl;
     std::vector<string> line;
     boost::split(line, lines[i], boost::is_any_of(":"));
-boost::trim(line[0]);    
-std::string headername = line[0];
-//boost::trim(line[1]);
+    
+    if(line.size() < 2){
+      continue;
+    }
+    boost::trim(line[0]);    
+    std::string headername = line[0];
+    boost::trim(line[1]);
     std::string headerval = line[1];
-//boost::trim(headerval);
     req.headers.insert({headername, headerval});
   }
- 
-  
 
   return req;
 }
