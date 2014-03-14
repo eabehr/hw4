@@ -57,7 +57,8 @@ bool HttpConnection::GetNextRequest(HttpRequest *request) {
   char *buf = (char *) malloc(sizeof(char) * 1024);
 // how to check for connection dropped?
   size_t location_of_exit_str = 0;
-  while (1) {
+  size_t end;
+  while ((end = buffer_.find(exit_str)) == string::npos) {
     int retval = WrappedRead(fd_, (unsigned char*) buf, 1024);
 // check if retval < 1024???
     if (retval == -1 || retval == 0) {
@@ -65,29 +66,30 @@ bool HttpConnection::GetNextRequest(HttpRequest *request) {
       return false;
     }
     buffer_.append(buf, retval);
-    
-    location_of_exit_str = buffer_.find_first_of(exit_str);
+
+if (strlen(buf) < 1024) {
+end = buffer_.find(exit_str);
+}    
+    /*location_of_exit_str = buffer_.find_first_of(exit_str);
     if (location_of_exit_str != string::npos) {
       // contains request header
    //   ParseRequest(location_of_exit_str); // or location - 1???
       break;
-    }
+    }*/
 
   }
+
+string s = buffer_.substr(0, end);
+*request = ParseRequest(end);
+buffer_ = buffer_.substr(end,+4);
+return true;
 // ??????
-if (location_of_exit_str != 0) {
-  *request = ParseRequest(location_of_exit_str); // or location-1
-}
-  return true;
+//  if (location_of_exit_str != 0) {
+//    *request = ParseRequest(location_of_exit_str); // or location-1
+//  }
+//  return true;
 }
 
-    //std::string buf_str(buf); // do i need this???                               
-    /*char* contains = std::strstr(buf, "\r\n\r\n");                               
-    if (contains != NULL) {                                                        
-      // request header found                                                      
-      // call parse request                                                        
-      break;                                                                       
-    }*/ 
 
 
 bool HttpConnection::WriteResponse(const HttpResponse &response) {
@@ -138,10 +140,12 @@ HttpRequest HttpConnection::ParseRequest(size_t end) {
     // get headername and headerval from line
     // line is of format [headername]: [headerval]
     std::vector<string> line;
-    boost::split(line, lines[i], boost::is_any_of(": "));
-    std::string headername = line[0];
+    boost::split(line, lines[i], boost::is_any_of(":"));
+boost::trim(line[0]);    
+std::string headername = line[0];
+//boost::trim(line[1]);
     std::string headerval = line[1];
-
+//boost::trim(headerval);
     req.headers.insert({headername, headerval});
   }
  
