@@ -23,6 +23,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 
 extern "C" {
   #include "libhw2/fileparser.h"
@@ -51,6 +52,19 @@ bool FileReader::ReadFile(std::string *str) {
 
   // MISSING:
 
+  std::string line;
+  std::ifstream file (fullfile);
+  std::string file_read = "";
+  if (file.is_open()) {
+    while (getline(file, line)) {
+// is the + "\n" bad?
+      file_read = file_read + "\n" + line;
+    }
+    *str = file_read;
+    file.close();
+  } else {
+    return false;
+  }
 
   return true;
 }

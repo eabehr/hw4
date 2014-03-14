@@ -25,6 +25,9 @@
 #include <string>
 #include <vector>
 
+#include <stdio.h>
+#include <string.h>
+
 #include "./HttpRequest.h"
 #include "./HttpUtils.h"
 #include "./HttpConnection.h"
@@ -49,10 +52,43 @@ bool HttpConnection::GetNextRequest(HttpRequest *request) {
   // caller invokes GetNextRequest()!
 
   // MISSING:
+  
+  std::string exit_str = "\r\n\r\n";
+  char *buf = (char *) malloc(sizeof(char) * 1024);
+// how to check for connection dropped?
+  size_t location_of_exit_str = 0;
+  while (1) {
+    int retval = WrappedRead(fd_, (unsigned char*) buf, 1024);
+// check if retval < 1024???
+    if (retval == -1 || retval == 0) {
+      // close connection
+      return false;
+    }
+    buffer_.append(buf, retval);
+    
+    location_of_exit_str = buffer_.find_first_of(exit_str);
+    if (location_of_exit_str != string::npos) {
+      // contains request header
+   //   ParseRequest(location_of_exit_str); // or location - 1???
+      break;
+    }
 
-
+  }
+// ??????
+if (location_of_exit_str != 0) {
+  *request = ParseRequest(location_of_exit_str); // or location-1
+}
   return true;
 }
+
+    //std::string buf_str(buf); // do i need this???                               
+    /*char* contains = std::strstr(buf, "\r\n\r\n");                               
+    if (contains != NULL) {                                                        
+      // request header found                                                      
+      // call parse request                                                        
+      break;                                                                       
+    }*/ 
+
 
 bool HttpConnection::WriteResponse(const HttpResponse &response) {
   std::string str = response.GenerateResponseString();
@@ -84,7 +120,23 @@ HttpRequest HttpConnection::ParseRequest(size_t end) {
   // to lowercase.
 
   // MISSING:
+  string delimiter = "\r\n";
+  std::vector<string> lines;
+  boost::split(lines, delimiter, boost::is_any_of(delimiter));
+//  std::vector<string>::iterator lines_it = lines.begin();
+  
+  std::vector<string> first_line;
+  boost::split(first_line, lines[0], boost::is_any_of(" "));
+//  std::vector<string>::iterator first_line_it = first_line.begin();
+  // get second token
+//  first_line_it++;
+  req.URI = first_line[1];
 
+  for (size_t i = 1; i < lines.size(); i++) {
+    lines[i];
+  }
+
+  
 
   return req;
 }
