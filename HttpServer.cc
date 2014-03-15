@@ -100,8 +100,28 @@ void HttpServer_ThrFn(ThreadPool::Task *t) {
     // use the HttpConnection class to write the response.  If the
     // client sent a "Connection: close\r\n" header, then shut down
     // the connection.
-
+    
     // MISSING:
+    HttpConnection h_conn(hst->client_fd);  
+    HttpRequest req;
+    bool read = h_conn.GetNextRequest(&req);
+    if (!read) {
+      done = true;
+      break;
+    }
+
+    // see if client sent close header
+    if ((req.headers.find("connection") != req.headers.end())
+        && (req.headers["connection"] == "close")) {
+      done = true;
+    }
+
+    HttpResponse resp = ProcessRequest(req, hst->basedir, hst->indices);
+    bool write = h_conn.WriteResponse(resp);
+    if (!write) {
+      done = true;
+      break;
+    }
   }
 }
 
@@ -144,15 +164,47 @@ HttpResponse ProcessFileRequest(const std::string &uri,
 
   // MISSING:
 
+  URLParser url_p;
+  // check if URI starts with static - if so, remove that keyword
+  std::string check_static = uri.substr(0,8);
+  if (check_static == "/static/") { 
+    url_p.Parse(uri.substr(8));
+  } else {
+    url_p.Parse(uri);
+  }
+  fname = url_p.get_path();
 
+  FileReader fr(basedir, fname);
+  std::string str;
+  bool read = fr.ReadFile(&str);
+  if (read) {
+    ret.protocol = "HTTP/1.1";
+    ret.response_code = 200;
+    ret.message = "success presumably";
+    
+    std::string type = "";
+    size_t loc_of_dot = fname.find(".");
+    std::string fn_suffix = fname.substr(loc_of_dot, fname.length());
+    if (fn_suffix == ".html" || fn_suffix == ".htm") {
+      type = "text/html";
+    } else if (fn_suffix == ".jpeg" || fn_suffix == ".jpg") {
+      type = "image/jpeg";
+    } else if (fn_suffix == ".png") {
+      type = "image/png";
+    }
+  
+    ret.headers["Content-type"] = type;
+    ret.body = str;
+  } else {
+    // If you couldn't find the file, return an HTTP 404 error.
+    ret.protocol = "HTTP/1.1";
+    ret.response_code = 404;
+    ret.message = "Not Found";
+    ret.body = "<html><body>Couldn't find file \"";
+    ret.body +=  EscapeHTML(fname);
+    ret.body += "\"</body></html>";
+  }
 
-  // If you couldn't find the file, return an HTTP 404 error.
-  ret.protocol = "HTTP/1.1";
-  ret.response_code = 404;
-  ret.message = "Not Found";
-  ret.body = "<html><body>Couldn't find file \"";
-  ret.body +=  EscapeHTML(fname);
-  ret.body += "\"</body></html>";
   return ret;
 }
 
@@ -184,7 +236,27 @@ HttpResponse ProcessQueryRequest(const std::string &uri,
 
   // MISSING:
 
+  std::string presentation = "<html><head><title>333gle</title></head>";
+  presentation += "<body><center style=\"font-size:500%;\">";
+  presentation += "<span style=\"position:relative;bottom:-0.33em;";
+  presentation += "color:orange;\">3</span><span style=\"color:red;\">3</span>";
+  presentation += "<span style=\"color:gold;\">3</span>";
+  presentation += "<span style=\"color:blue;\">g</span>";
+  presentation += "<span style=\"color:green;\">l</span>";
+  presentation += "<span style=\"color:red;\">e</span>";
+  presentation += "</center><p><div style=\"height:20px;\"></div><center>";
+  presentation += "<form action=\"/query\" method=\"get\">";
+  presentation += "<input type=\"text\" size=30 name=\"terms\" />";
+  presentation += "<input type=\"submit\" value=\"Search\" /></form>";
+  presentation += "</center><p></body></html>";
 
+  URLParser url_p;
+// ???  std::string uri_lower = uri.to_lower();
+  url_p.Parse(uri);
+  std::map<std::string, std::string> args = url_p.get_args();
+
+  hw3::QueryProcessor qp(*indices);
+  ret.body = presentation;
   return ret;
 }
 

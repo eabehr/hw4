@@ -103,5 +103,44 @@ void GetPortAndPath(int argc,
   //      are readable files.
 
   // MISSING:
+
+  // must have at least port, directory, index as command line arguments
+  if (argc < 4) {
+    Usage(argv[0]);
+  }
+
+  // check port number
+  uint16_t port_num = atoi(argv[1]);
+
+  if (port_num < 1 || port_num > 65535) {
+    std::cout << port_num << " not a valid port number." << std::endl;
+    Usage(argv[0]);
+  } else {
+    *port = port_num;
+  }
+
+  // check readable directory  
+  struct stat path_info;
+  int retval = stat(argv[2], &path_info);
+  if (retval != 0 || !S_ISDIR(path_info.st_mode)) {
+    std::cout << "not a valid directory." <<std::endl;
+    Usage(argv[0]);
+  } else {
+    *path = argv[2];
+  }
+  
+  // check indices readable, add to indices list
+  // iterate over remaining command line arguments
+  for (int i = 3; i < argc; i++) {
+    struct stat index_info;
+    retval = stat(argv[i], &index_info);
+    if (retval != 0) {
+      std::cout << "not all indices are readable files." << std::endl;
+      Usage(argv[0]);
+    } else {
+      indices->push_back(argv[i]);
+    }
+  }
+
 }
 

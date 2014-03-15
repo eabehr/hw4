@@ -52,21 +52,18 @@ bool FileReader::ReadFile(std::string *str) {
 
   // MISSING:
 
-  std::string line;
-  std::ifstream file (fullfile);
-  std::string file_read = "";
-  if (file.is_open()) {
-    while (getline(file, line)) {
-// is the + "\n" bad?
-      file_read = file_read + "\n" + line;
+  if (IsPathSafe(basedir_, fullfile)) {
+    HWSize_t file_size;
+    char* read_fullfile = ::ReadFile(fullfile.c_str(), &file_size);
+    if (read_fullfile == NULL) {
+      return false;
     }
-    *str = file_read;
-    file.close();
+    std::string s(read_fullfile, file_size);
+    *str = s;
+    return true;
   } else {
     return false;
   }
-
-  return true;
 }
 
 }  // namespace hw4

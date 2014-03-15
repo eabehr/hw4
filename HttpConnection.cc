@@ -55,7 +55,6 @@ bool HttpConnection::GetNextRequest(HttpRequest *request) {
   
   std::string exit_str = "\r\n\r\n";
   char *buf = (char *) malloc(sizeof(char) * 1024);
-// how to check for connection dropped?
   size_t exit_location = buffer_.find(exit_str);
 
   // check that there isn't already existing buffer
@@ -63,7 +62,6 @@ bool HttpConnection::GetNextRequest(HttpRequest *request) {
     while (1){
       int retval = WrappedRead(fd_, (unsigned char*) buf, 1024);
       if (retval == -1 || retval == 0) {
-        //??? HOW close connection
         return false;
       }
       buffer_.append(buf, retval);
@@ -129,7 +127,6 @@ HttpRequest HttpConnection::ParseRequest(size_t end) {
 
     // get headername and headerval from line
     // line is of format [headername]: [headerval]
-std::cout << lines[i] << std::endl;
     std::vector<string> line;
     boost::split(line, lines[i], boost::is_any_of(":"));
     

@@ -65,8 +65,6 @@ bool ServerSocket::BindAndListen(int ai_family, int *listen_fd) {
   int retval;
   struct addrinfo hints, *result;
 
-/*CODE FROM server_accept_rw_close.cc.html*/
-
   memset(&hints, 0, sizeof(struct addrinfo));
   hints.ai_family = ai_family;      // allow IPv4 or IPv6
   hints.ai_socktype = SOCK_STREAM;  // stream
@@ -167,7 +165,7 @@ bool ServerSocket::Accept(int *accepted_fd,
       } else {
         return false;
       }
-    }//any error checking???
+    }
     
     // get accepted_fd value
     *accepted_fd = client_fd;
